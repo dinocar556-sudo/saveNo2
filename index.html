@@ -267,7 +267,7 @@
             case 'rain': entity.speedY = 8 + Math.random() * 4; entity.size = 20; break;
             case 'bird': entity.emoji = '🦅'; entity.speedY = 4 + Math.random() * 2; entity.size = 35; break;
             case 'airplane': entity.emoji = '✈️'; entity.speedY = 6; entity.size = 50; break;
-            case 'uv': entity.speedY = 7 + Math.random() * 4; entity.size = 20; break;
+            case 'uv': entity.speedY = 12 + Math.random() * 5; entity.size = 20; break; // 자외선 떨어지는 속도 대폭 상향
             case 'ozone': entity.speedY = 3.5; entity.size = 30; break;
             case 'meteor': entity.speedY = 7 + Math.random() * 5; entity.size = 25; entity.x = Math.random() * canvas.width; break;
             case 'satellite': entity.emoji = '🛰️'; entity.speedY = 8 + Math.random() * 4; entity.size = 45; break;
@@ -354,15 +354,23 @@
     function triggerGameClear() {
         gameState = 'clear';
         
-        // 점수 계산 (기본 점수 10000점에서 걸린 시간 페널티 감점 + 남은 연료 보너스)
+        // 점수 계산 (기준 시간 대비 클리어 시간의 '퍼센테이지 비율'로 계산하여 차이 극대화)
         let finalTime = elapsedTime.toFixed(1);
-        let baseScore = 15000;
-        let timePenalty = Math.floor(elapsedTime * 80); // 1초당 80점 감점
-        let fuelBonus = Math.floor(player.fuel * 30);   // 남은 연료 1%당 30점 보너스
-        let finalScore = Math.max(0, baseScore - timePenalty) + fuelBonus;
+        let targetTime = 22; // 완벽한 스피드런 기준 시간 (22초)
+        
+        // 시간에 따른 퍼센테이지 비율 (빠를수록 기하급수적으로 상승, 느릴수록 급격히 하락)
+        let timeRatio = Math.pow(targetTime / elapsedTime, 2); 
+        let timePercent = (timeRatio * 100).toFixed(1);
+        
+        let baseScore = 10000; // 기본 점수
+        let timeScore = Math.floor(baseScore * timeRatio); // 시간에 의한 절대적인 점수 (전체의 90% 이상 차지)
+        let fuelBonus = Math.floor(player.fuel * 10);   // 남은 연료 보너스 대폭 축소 (1%당 10점, 최대 1000점)
+        let finalScore = timeScore + fuelBonus;
 
         document.getElementById('clear-stats').innerHTML = `
             탐사 소요 시간: <b style="color:#4CAF50;">${finalTime}초</b><br>
+            시간 효율 (퍼센트): <b style="color:#2196F3;">${timePercent}%</b> 적용<br>
+            시간 점수: <b style="color:#E040FB;">${timeScore.toLocaleString()}점</b><br>
             남은 연료 보너스: <b style="color:#FF9800;">+${fuelBonus}점</b><br>
             <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc;">
                 최종 스코어: <b style="font-size:1.8rem; color:#E91E63;">${finalScore.toLocaleString()}점</b>
@@ -595,7 +603,8 @@
                         }
                         break;
                     case 'ozone':
-                        player.isInvincible = true; player.invincibleTimer = 240;
+                        player.isInvincible = true; 
+                        player.invincibleTimer = 120; // 오존 방어막 유지 시간 절반으로 감소 (240 -> 120 프레임, 약 2초)
                         spawnParticles(player.x, player.y, '#00E5FF', 20, 2);
                         break;
                     case 'uv':
