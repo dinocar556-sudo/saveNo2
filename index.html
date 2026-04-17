@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>재혁쌤 구하기2</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Pretendard', sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .modal {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            pointer-events: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.5);
+            max-width: 450px;
+            width: 80%;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        h1 { margin-top: 0; color: #1a1a1a; font-weight: 800; letter-spacing: -1px; }
+        p { color: #444; line-height: 1.6; font-size: 1rem; }
+        .instruction-box {
+            text-align: left; 
+            background: rgba(0,0,0,0.05); 
+            padding: 15px; 
+            border-radius: 12px; 
+            font-size: 0.9rem;
+            margin: 15px 0;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        button {
+            margin-top: 1rem;
+            padding: 12px 28px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: white;
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 6px 15px rgba(76, 175, 80, 0.4);
+            transition: all 0.2s ease;
+        }
+        button:active { transform: translateY(3px); box-shadow: 0 2px 5px rgba(76, 175, 80, 0.4); }
+        button:hover { background: linear-gradient(135deg, #45a049, #1b5e20); transform: translateY(-2px); }
+        #game-over, #game-clear { display: none; }
+        
+        .glass-panel {
+            background: rgba(10, 20, 30, 0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+        }
+        
+        .layer-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+        }
+        .status-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .effect-text { color: #FFD700; font-size: 0.95rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        #lives-display { font-size: 1.6rem; color: #FF5252; text-shadow: 0 2px 5px rgba(0,0,0,0.5); letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <!-- 시작 화면 -->
+        <div id="start-screen" class="modal">
+            <h1>🚀 재혁쌤 구하기2</h1>
+            <p style="color: #E91E63; font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">
+                🚨 달 탐사 중 조난된 '노재혁 쌤'을 구출하라!
+            </p>
+            <p>
+                <b>[조작법]</b><br>
+                💻 PC: 좌우 방향키 (←, →)<br>
+                📱 모바일: 화면 좌/우 터치
+            </p>
+            <div class="instruction-box">
+                ⛽ <b>연료:</b> 연료가 많을수록 <b>더 빨리 상승</b>합니다. 떨어지는 연료통을 챙겨 고갈을 막으세요!<br>
+                ☁️ <b>대류권:</b> 비와 구름을 피하세요. 시야와 속도가 줄어듭니다.<br>
+                🛡️ <b>성층권:</b> 자외선을 피하고 푸른 <b>O₃ 방어막</b>을 챙기세요!<br>
+                ☄️ <b>중간권:</b> 기온 급강하로 로켓이 <b>얼어붙습니다.</b> 불타는 유성을 피하세요.<br>
+                🌌 <b>열권:</b> 극단적 일교차! <b>낮엔 과열로 폭주</b>하고, <b>밤엔 꽁꽁 업니다.</b>
+            </div>
+            <button onclick="startGame()">구조선 발사!</button>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div id="game-over" class="modal">
+            <h1 style="color:#d32f2f;">💥 구조 실패</h1>
+            <p id="fail-reason" style="font-weight:bold;">장애물에 부딪혔습니다.</p>
+            <button onclick="resetGame()" style="background: linear-gradient(135deg, #f44336, #c62828); box-shadow: 0 6px 15px rgba(244, 67, 54, 0.4);">다시 도전</button>
+        </div>
+
+        <!-- 클리어 화면 -->
+        <div id="game-clear" class="modal">
+            <h1 style="color:#1976d2;">🎉 재혁쌤 구조 성공!</h1>
+            <p>기권을 무사히 돌파하여 달 궤도에 진입했습니다!<br>이제 노재혁 쌤을 무사히 지구로 모실 수 있습니다.</p>
+            <div id="clear-stats" style="background: rgba(0,0,0,0.05); padding: 15px; border-radius: 10px; margin-bottom: 15px; font-size: 1.1rem; line-height: 1.8;">
+                <!-- 점수 결과 표시 영역 -->
+            </div>
+            <button onclick="resetGame()" style="background: linear-gradient(135deg, #2196F3, #1565C0); box-shadow: 0 6px 15px rgba(33, 150, 243, 0.4);">다시 플레이</button>
+        </div>
+    </div>
+
+    <!-- 인게임 UI -->
+    <div id="ingame-ui" style="display: none;">
+        <div class="status-info glass-panel" style="width: 160px;">
+            <div id="lives-display">❤️❤️❤️</div>
+            
+            <!-- 연료 게이지 바 추가 -->
+            <div id="fuel-container" style="width: 100%; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; margin-top: 5px; overflow: hidden; border: 1px solid rgba(255,255,255,0.3);">
+                <div id="fuel-bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #FF5252, #FFC107, #69F0AE); transition: width 0.1s, background-color 0.3s;"></div>
+            </div>
+            <div style="font-size: 0.85rem; font-weight: bold; text-align: right; margin-top: 2px;">연료: <span id="fuel-text">100</span>%</div>
+            
+            <div id="time-display" style="font-size: 0.95rem; font-weight: bold; color: #E0E0E0; margin-top: 5px;">⏱️ 0.0s</div>
+            <div id="status-display" style="margin-top: 5px;"><span>시스템: 정상</span></div>
+        </div>
+        <div class="layer-info glass-panel">
+            <div id="altitude-display" style="font-size: 1.8rem; font-weight: 900; color: #69F0AE; text-shadow: 0 0 10px rgba(105, 240, 174, 0.3);">0.0 km</div>
+            <div id="speed-display" style="font-size: 1.1rem; font-weight: bold; color: #FFCA28; margin-top: 2px;">🚀 0 km/h</div>
+            <div id="layer-name" style="margin-top: 5px; font-weight: bold; color: #E0E0E0;">대류권</div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over');
+    const gameClearScreen = document.getElementById('game-clear');
+    const ingameUI = document.getElementById('ingame-ui');
+    const altDisplay = document.getElementById('altitude-display');
+    const speedDisplay = document.getElementById('speed-display');
+    const layerNameDisplay = document.getElementById('layer-name');
+    const statusDisplay = document.getElementById('status-display');
+    const failReason = document.getElementById('fail-reason');
+    const livesDisplay = document.getElementById('lives-display');
+
+    function resizeCanvas() {
+        canvas.width = Math.min(window.innerWidth, 600);
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    let animationId;
+    let gameState = 'start'; 
+    let altitude = 0;
+    
+    // 점수 및 시간 변수 추가
+    let startTime = 0;
+    let elapsedTime = 0;
+    
+    // 플레이어 객체
+    const player = {
+        x: canvas.width / 2,
+        y: canvas.height - 120,
+        size: 45,
+        speedX: 0,
+        baseSpeed: 6.5,
+        fuel: 100, // 연료 기본값 100
+        isSlow: false,
+        isInvincible: false,
+        isFrozen: false,
+        isOverheated: false, // 열권 낮 과열 상태
+        slowTimer: 0,
+        invincibleTimer: 0,
+        lives: 3,
+        isHit: false,
+        hitTimer: 0,
+        thermoTimer: 0, // 열권 낮/밤 교체 타이머
+        isThermoDay: true, // 열권 낮/밤 상태
+        flashAlpha: 0,
+        flashColor: '255, 255, 255',
+        tempAlertTimer: 0, // 온도 변화 알림 타이머 추가
+        tempAlertText: '',
+        tempAlertColor: '',
+        ozoneHeatTimer: 0, // 오존-자외선 흡수 가열 타이머
+        speedKmH: 0 // 실시간 상승 속도 (km/h)
+    };
+
+    let entities = [];
+    let stars = [];
+    let particles = [];
+    let waterDrops = [];
+
+    const keys = { ArrowLeft: false, ArrowRight: false };
+    
+    window.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
+    window.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touchX = e.touches[0].clientX;
+        const rect = canvas.getBoundingClientRect();
+        if ((touchX - rect.left) < canvas.width / 2) { keys.ArrowLeft = true; keys.ArrowRight = false; } 
+        else { keys.ArrowRight = true; keys.ArrowLeft = false; }
+    }, {passive: false});
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        keys.ArrowLeft = false; keys.ArrowRight = false;
+    }, {passive: false});
+
+    // 별 생성 (패럴랙스 효과를 위해 depth 추가)
+    for(let i=0; i<80; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 1.5 + 0.5,
+            depth: Math.random() * 0.8 + 0.2, // 이동 속도 배율
+            opacity: Math.random()
+        });
+    }
+
+    function spawnEntity(type) {
+        const entity = { type: type, x: Math.random() * (canvas.width - 60) + 30, y: -50, size: 35, speedY: 0 };
+        switch(type) {
+            case 'cloud': entity.speedY = 3 + Math.random() * 1.5; entity.size = 60; break;
+            case 'rain': entity.speedY = 8 + Math.random() * 4; entity.size = 20; break;
+            case 'bird': entity.emoji = '🦅'; entity.speedY = 4 + Math.random() * 2; entity.size = 35; break;
+            case 'airplane': entity.emoji = '✈️'; entity.speedY = 6; entity.size = 50; break;
+            case 'uv': entity.speedY = 7 + Math.random() * 4; entity.size = 20; break;
+            case 'ozone': entity.speedY = 3.5; entity.size = 30; break;
+            case 'meteor': entity.speedY = 7 + Math.random() * 5; entity.size = 25; entity.x = Math.random() * canvas.width; break;
+            case 'satellite': entity.emoji = '🛰️'; entity.speedY = 8 + Math.random() * 4; entity.size = 45; break;
+            case 'fuel': entity.emoji = '⛽'; entity.speedY = 5 + Math.random() * 2; entity.size = 35; break; // 연료통 아이템
+        }
+        entities.push(entity);
+    }
+
+    function handleSpawning() {
+        // 모든 층에서 연료통이 꾸준히 떨어지도록 설정
+        if (Math.random() < 0.015) spawnEntity('fuel');
+
+        if (altitude < 11) {
+            if (Math.random() < 0.035) spawnEntity('cloud'); // 0.02 -> 0.035 (빈도 대폭 증가)
+            if (Math.random() < 0.015) spawnEntity('rain'); // 0.008 -> 0.015
+            if (Math.random() < 0.02) spawnEntity('bird'); // 0.012 -> 0.02
+            if (Math.random() < 0.015) spawnEntity('airplane'); // 0.008 -> 0.015
+        } else if (altitude < 50) {
+            if (Math.random() < 0.045) spawnEntity('uv'); // 자외선 빈도 대폭 증가 (0.025 -> 0.045)
+            if (Math.random() < 0.006) spawnEntity('ozone'); // 오존 빈도 절반으로 감소 (0.012 -> 0.006)
+        } else if (altitude < 80) {
+            if (Math.random() < 0.045) spawnEntity('meteor'); // 유성 빈도 대폭 증가 (0.025 -> 0.045)
+        } else {
+            // 열권: 낮에는 위성 더 많이, 밤에는 덜 나오게 조절 가능하나 기본 유지
+            if (Math.random() < 0.035) spawnEntity('satellite'); // 0.015 -> 0.035 (인공위성 무더기)
+        }
+    }
+
+    function spawnParticles(x, y, color, count, speedFactor = 1) {
+        for(let i=0; i<count; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 4 * speedFactor,
+                vy: (Math.random() - 0.5) * 4 * speedFactor,
+                life: 1,
+                decay: Math.random() * 0.05 + 0.02,
+                color: color,
+                size: Math.random() * 6 + 2
+            });
+        }
+    }
+
+    function startGame() {
+        gameState = 'playing';
+        altitude = 0;
+        entities = [];
+        particles = [];
+        waterDrops = [];
+        player.x = canvas.width / 2;
+        player.isInvincible = false;
+        player.isSlow = false;
+        player.isFrozen = false;
+        player.isOverheated = false;
+        player.lives = 3;
+        player.fuel = 100; // 연료 초기화
+        player.isHit = false;
+        player.hitTimer = 0;
+        
+        player.thermoTimer = 180; // 열권 첫 진입 시 낮으로 3초 시작
+        player.isThermoDay = true;
+        player.flashAlpha = 0;
+        player.tempAlertTimer = 0; // 알림 타이머 초기화
+        player.ozoneHeatTimer = 0; // 자외선 흡수 버프 초기화
+        
+        startTime = Date.now(); // 시간 측정 시작
+        
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        gameClearScreen.style.display = 'none';
+        ingameUI.style.display = 'block';
+        
+        gameLoop();
+    }
+
+    function resetGame() { startGame(); }
+
+    function triggerGameOver(reason) {
+        gameState = 'gameover';
+        failReason.innerText = reason;
+        ingameUI.style.display = 'none';
+        gameOverScreen.style.display = 'block';
+    }
+
+    function triggerGameClear() {
+        gameState = 'clear';
+        
+        // 점수 계산 (기본 점수 10000점에서 걸린 시간 페널티 감점 + 남은 연료 보너스)
+        let finalTime = elapsedTime.toFixed(1);
+        let baseScore = 15000;
+        let timePenalty = Math.floor(elapsedTime * 80); // 1초당 80점 감점
+        let fuelBonus = Math.floor(player.fuel * 30);   // 남은 연료 1%당 30점 보너스
+        let finalScore = Math.max(0, baseScore - timePenalty) + fuelBonus;
+
+        document.getElementById('clear-stats').innerHTML = `
+            탐사 소요 시간: <b style="color:#4CAF50;">${finalTime}초</b><br>
+            남은 연료 보너스: <b style="color:#FF9800;">+${fuelBonus}점</b><br>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc;">
+                최종 스코어: <b style="font-size:1.8rem; color:#E91E63;">${finalScore.toLocaleString()}점</b>
+            </div>
+        `;
+
+        ingameUI.style.display = 'none';
+        gameClearScreen.style.display = 'block';
+    }
+
+    // ⭐ 커스텀 우주선 그리기 함수
+    function drawRocket(ctx, x, y, size, isInvincible, isFrozen, isOverheated, isOzoneHeated) {
+        if (player.isHit && Math.floor(Date.now() / 100) % 2 === 0) return;
+        
+        ctx.save();
+        ctx.translate(x, y);
+
+        // 얼어붙은 효과 (중간권 또는 열권 밤)
+        if (isFrozen) {
+            ctx.fillStyle = 'rgba(150, 220, 255, 0.4)';
+            ctx.beginPath(); ctx.arc(0, 0, size * 1.2, 0, Math.PI*2); ctx.fill();
+            ctx.translate((Math.random()-0.5)*4, (Math.random()-0.5)*4);
+        }
+        
+        // 과열 폭주 효과 (열권 낮)
+        if (isOverheated) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#FF3D00';
+            ctx.translate((Math.random()-0.5)*6, (Math.random()-0.5)*6); // 엄청난 속도로 인한 진동
+        }
+
+        // 로켓 엔진 불꽃 애니메이션
+        const time = Date.now();
+        let flameHeight = 20 + Math.sin(time / 50) * 8;
+        if (isOverheated) flameHeight *= 1.8; // 과열 시 불꽃이 커짐
+        else if (isOzoneHeated) flameHeight *= 1.4; // 오존 가열 시 불꽃이 살짝 커짐
+        
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#FF5722';
+        ctx.fillStyle = '#FFC107';
+        ctx.beginPath();
+        ctx.moveTo(-10, size/2 - 5);
+        ctx.lineTo(0, size/2 + flameHeight);
+        ctx.lineTo(10, size/2 - 5);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // 엔진에서 파티클 생성
+        if (Math.random() < (isOverheated ? 0.8 : 0.5) && !isFrozen) {
+            particles.push({
+                x: x + (Math.random()-0.5)*10, y: y + size/2 + 5,
+                vx: (Math.random()-0.5)*1, vy: Math.random()*3 + 2,
+                life: 1, decay: 0.05, color: isOverheated ? '#FF3D00' : '#FF9800', size: Math.random()*5+2
+            });
+        }
+
+        // 로켓 본체
+        ctx.fillStyle = isOverheated ? '#FFCDD2' : (isOzoneHeated ? '#FFE0B2' : '#E0E0E0'); // 과열이나 자외선 흡수 시 선체 색상 변화
+        ctx.beginPath();
+        ctx.moveTo(0, -size/2 - 10);
+        ctx.quadraticCurveTo(15, -10, 15, size/2);
+        ctx.lineTo(-15, size/2);
+        ctx.quadraticCurveTo(-15, -10, 0, -size/2 - 10);
+        ctx.fill();
+
+        // 날개 (Fins)
+        ctx.fillStyle = '#D32F2F';
+        ctx.beginPath(); ctx.moveTo(15, size/4); ctx.lineTo(25, size/2 + 5); ctx.lineTo(15, size/2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-15, size/4); ctx.lineTo(-25, size/2 + 5); ctx.lineTo(-15, size/2); ctx.fill();
+
+        // 창문
+        ctx.fillStyle = '#29B6F6';
+        ctx.beginPath(); ctx.arc(0, -5, 7, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#E1F5FE'; 
+        ctx.beginPath(); ctx.arc(-2, -7, 2, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+
+        // 무적 방어막 (오존)
+        if (isInvincible) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00E5FF';
+            ctx.fillStyle = 'rgba(0, 229, 255, 0.2)';
+            ctx.strokeStyle = '#00E5FF';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 1.1 + Math.sin(time/100)*3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    function update() {
+        if (gameState !== 'playing') return;
+
+        // 경과 시간 계산
+        elapsedTime = (Date.now() - startTime) / 1000;
+
+        // 연료 감소 로직 (기존 초당 3.6% -> 초당 6% 소모로 난이도 상향)
+        player.fuel -= 0.1; 
+        if (player.fuel <= 0) {
+            player.fuel = 0;
+            triggerGameOver("연료가 고갈되어 추락했습니다!");
+            return;
+        }
+
+        // 🌟 연료량에 따른 상승 속도 배율 (차이 극대화!)
+        // 곡선(제곱) 형태를 사용하여 100% 근처일 땐 폭발적으로 빠르고(2.2배), 
+        // 절반 이하로 떨어지면 속도가 확 죽어버리도록(0.7배 이하) 설계
+        let fuelRatio = player.fuel / 100;
+        let ascentMultiplier = 0.2 + (fuelRatio * fuelRatio) * 2.0;
+
+        let baseAscent = 0;
+        if (altitude < 11) baseAscent = 0.008;
+        else if (altitude < 50) baseAscent = 0.018;
+        else if (altitude < 80) baseAscent = 0.02;
+        else baseAscent = 0.025;
+
+        // 상승 속도 적용 및 km/h 계산
+        let currentAscentRate = baseAscent * ascentMultiplier;
+        altitude += currentAscentRate;
+        player.speedKmH = Math.floor(currentAscentRate * 60 * 3600); // (프레임당 이동거리) * 60프레임 * 3600초
+        
+        if (altitude >= 100) { triggerGameClear(); return; }
+
+        let currentSpeed = player.baseSpeed;
+        
+        // 열권: 낮과 밤 극한 교차 (일교차 시스템)
+        if (altitude >= 80) {
+            player.thermoTimer--;
+            if (player.thermoTimer <= 0) {
+                player.isThermoDay = !player.isThermoDay; // 낮/밤 전환
+                player.thermoTimer = 180 + Math.random() * 60; // 3~4초 지속
+                player.flashAlpha = 0.6;
+                player.flashColor = player.isThermoDay ? '255, 150, 0' : '100, 200, 255'; // 전환 시 화면 번쩍임
+                
+                // 온도 상승/하강 알림 설정
+                player.tempAlertTimer = 120;
+                player.tempAlertText = player.isThermoDay ? "🌡️ 온도 1500°C 상승!" : "❄️ 온도 -120°C 급강하!";
+                player.tempAlertColor = player.isThermoDay ? "#FF5252" : "#81D4FA";
+            }
+
+            if (player.isThermoDay) {
+                player.isOverheated = true;
+                player.isFrozen = false;
+                currentSpeed *= 2.0; // 낮: 1500도로 선체 과열! 통제 불가 수준으로 빠름
+            } else {
+                player.isOverheated = false;
+                player.isFrozen = true; // 밤: 영하 120도로 급랭! 
+                currentSpeed *= 0.3; // 밤: 얼어붙어 매우 느려짐
+            }
+        } else {
+            // 다른 층
+            player.isOverheated = false;
+            if (altitude >= 50 && altitude < 80) {
+                player.isFrozen = true; // 중간권 결빙
+                currentSpeed *= 0.35;
+            } else {
+                player.isFrozen = false;
+            }
+        }
+
+        if (player.isSlow) currentSpeed *= 0.4; // 구름
+        
+        if (player.ozoneHeatTimer > 0) {
+            player.ozoneHeatTimer--;
+            currentSpeed *= 1.4; // 자외선 흡수로 온도 상승 -> 40% 속도 버프
+        }
+
+        let moveLeft = keys.ArrowLeft;
+        let moveRight = keys.ArrowRight;
+
+        if (moveLeft) player.x -= currentSpeed;
+        if (moveRight) player.x += currentSpeed;
+        player.x = Math.max(player.size/2 + 10, Math.min(canvas.width - player.size/2 - 10, player.x));
+
+        // 타이머 및 효과 감쇄
+        if (player.slowTimer > 0) { player.slowTimer--; if (player.slowTimer <= 0) player.isSlow = false; }
+        if (player.invincibleTimer > 0) { player.invincibleTimer--; if (player.invincibleTimer <= 0) player.isInvincible = false; }
+        if (player.hitTimer > 0) { player.hitTimer--; if (player.hitTimer <= 0) player.isHit = false; }
+        if (player.flashAlpha > 0) player.flashAlpha -= 0.05;
+        if (player.tempAlertTimer > 0) player.tempAlertTimer--;
+        
+        // 파티클 업데이트
+        for(let i=particles.length-1; i>=0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+            if(p.life <= 0) particles.splice(i, 1);
+        }
+
+        // 물방울 업데이트
+        for(let k = waterDrops.length - 1; k >= 0; k--) {
+            waterDrops[k].life--;
+            waterDrops[k].y += 0.5;
+            if (waterDrops[k].life <= 0) waterDrops.splice(k, 1);
+        }
+
+        // 엔티티 이동 및 충돌
+        for (let i = entities.length - 1; i >= 0; i--) {
+            let e = entities[i];
+            e.y += e.speedY;
+
+            if(e.type === 'meteor') {
+                particles.push({
+                    x: e.x + (Math.random()-0.5)*10, y: e.y,
+                    vx: (Math.random()-0.5)*1, vy: -Math.random()*2,
+                    life: 1, decay: 0.05, color: '#FF5722', size: Math.random()*6+3
+                });
+            }
+
+            let dx = player.x - e.x;
+            let dy = player.y - e.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < (player.size/2 + e.size/2) * 0.8) {
+                switch(e.type) {
+                    case 'fuel':
+                        player.fuel = Math.min(100, player.fuel + 20); // 밸런스를 위해 회복량 20%로 조절
+                        spawnParticles(player.x, player.y, '#4CAF50', 20, 2);
+                        break;
+                    case 'cloud':
+                        player.isSlow = true; player.slowTimer = 60;
+                        break;
+                    case 'rain':
+                        for(let w = 0; w < 5; w++) {
+                            waterDrops.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: 80 + Math.random() * 120, life: 240 });
+                        }
+                        break;
+                    case 'ozone':
+                        player.isInvincible = true; player.invincibleTimer = 240;
+                        spawnParticles(player.x, player.y, '#00E5FF', 20, 2);
+                        break;
+                    case 'uv':
+                        if (player.isInvincible) {
+                            // 오존막 상태에서 자외선을 흡수하면 가열되어 속도 버프 획득!
+                            player.ozoneHeatTimer = 120; // 2초간 속도 증가
+                            player.tempAlertTimer = 120;
+                            player.tempAlertText = "🌡️ 자외선 흡수로 온도 상승!";
+                            player.tempAlertColor = "#FFB300";
+                            spawnParticles(player.x, player.y, '#FFB300', 25, 2);
+                        } else if (!player.isHit) {
+                            player.lives--;
+                            player.isHit = true;
+                            player.hitTimer = 120;
+                            spawnParticles(player.x, player.y, '#F44336', 30, 3);
+                            if (player.lives <= 0) triggerGameOver(`강력한 자외선에 충돌하여 로켓이 파괴되었습니다!`);
+                        }
+                        break;
+                    case 'bird': case 'airplane': case 'meteor': case 'satellite':
+                        if (!player.isInvincible && !player.isHit) {
+                            player.lives--;
+                            player.isHit = true;
+                            player.hitTimer = 120;
+                            spawnParticles(player.x, player.y, '#F44336', 30, 3);
+                            
+                            if (player.lives <= 0) {
+                                let reason = e.type === 'meteor' ? '유성' : (e.type === 'satellite' ? '인공위성' : '비행 물체');
+                                triggerGameOver(`${reason}에 충돌하여 로켓이 파괴되었습니다!`);
+                            }
+                        }
+                        break;
+                }
+                
+                if(e.type !== 'cloud') { entities.splice(i, 1); continue; }
+            }
+            if (e.y > canvas.height + 50) entities.splice(i, 1);
+        }
+
+        handleSpawning();
+        updateUI();
+    }
+
+    function getBackgroundGradient(ctx) {
+        let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        if (altitude < 11) {
+            grad.addColorStop(0, '#56CCF2'); grad.addColorStop(1, '#2F80ED');
+        } else if (altitude < 50) {
+            const ratio = (altitude - 11) / 39;
+            grad.addColorStop(0, `rgba(${Math.floor(47*(1-ratio) + 10*ratio)}, ${Math.floor(128*(1-ratio) + 20*ratio)}, ${Math.floor(237*(1-ratio) + 60*ratio)}, 1)`);
+            grad.addColorStop(1, `rgba(${Math.floor(86*(1-ratio) + 20*ratio)}, ${Math.floor(204*(1-ratio) + 40*ratio)}, ${Math.floor(242*(1-ratio) + 100*ratio)}, 1)`);
+        } else if (altitude < 80) {
+            grad.addColorStop(0, '#0f2027'); grad.addColorStop(0.5, '#203a43'); grad.addColorStop(1, '#2c5364');
+        } else {
+            // 열권 낮/밤 배경 톤업/다운
+            if (player.isThermoDay) {
+                grad.addColorStop(0, '#1a0500'); grad.addColorStop(1, '#2a1a29'); // 태양빛을 받아 약간 붉은 우주
+            } else {
+                grad.addColorStop(0, '#000000'); grad.addColorStop(1, '#050a1a'); // 극도로 차갑고 어두운 우주
+            }
+        }
+        return grad;
+    }
+
+    function drawCustomEntities(ctx, e) {
+        if (e.type === 'cloud') {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.size/2, 0, Math.PI*2);
+            ctx.arc(e.x - e.size/2.5, e.y + e.size/5, e.size/2.5, 0, Math.PI*2);
+            ctx.arc(e.x + e.size/2.5, e.y + e.size/5, e.size/2.5, 0, Math.PI*2);
+            ctx.fill(); ctx.shadowBlur = 0;
+        } else if (e.type === 'rain') {
+            ctx.fillStyle = 'rgba(80, 180, 255, 0.95)';
+            ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(80, 180, 255, 0.8)';
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y - e.size);
+            ctx.quadraticCurveTo(e.x + e.size/2, e.y, e.x, e.y + e.size/2);
+            ctx.quadraticCurveTo(e.x - e.size/2, e.y, e.x, e.y - e.size);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else if (e.type === 'ozone') {
+            ctx.shadowBlur = 15; ctx.shadowColor = '#00E5FF';
+            ctx.fillStyle = 'rgba(0, 229, 255, 0.3)';
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.size/2, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#FFFFFF'; ctx.font = `bold ${e.size*0.6}px Pretendard`; ctx.fillText('O₃', e.x, e.y);
+        } else if (e.type === 'uv') {
+            let grad = ctx.createLinearGradient(e.x, e.y - 80, e.x, e.y + 20);
+            grad.addColorStop(0, 'rgba(180, 0, 255, 0)'); grad.addColorStop(0.5, 'rgba(180, 0, 255, 0.9)'); grad.addColorStop(1, 'rgba(180, 0, 255, 0)');
+            ctx.fillStyle = grad; ctx.fillRect(e.x - 10, e.y - 80, 20, 100);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.fillRect(e.x - 2, e.y - 70, 4, 80);
+        } else if (e.type === 'meteor') {
+            ctx.shadowBlur = 15; ctx.shadowColor = '#FF3D00';
+            ctx.fillStyle = '#FF9800';
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.size/2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#FFEB3B'; ctx.beginPath(); ctx.arc(e.x-2, e.y+2, e.size/4, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+        } else if (e.emoji) {
+            ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.fillStyle = 'white'; ctx.font = `${e.size}px Arial`; ctx.fillText(e.emoji, e.x, e.y);
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function drawAtmosphereGraph(ctx) {
+        const w = 80; const h = canvas.height * 0.45;
+        const x = canvas.width - w - 15; const y = 90;
+
+        ctx.fillStyle = 'rgba(10, 20, 30, 0.5)';
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(x, y, w, h, 12); else ctx.rect(x, y, w, h);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.lineWidth = 1; ctx.stroke();
+
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Pretendard'; ctx.textAlign = 'center';
+        ctx.fillText('온도 변화(°C)', x + w/2, y + 18);
+
+        const altToY = (alt) => y + h - 25 - (Math.min(alt, 100) / 100) * (h - 50);
+        const tempToX = (temp) => x + 15 + ((temp + 100) / 120) * (w - 30);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.setLineDash([2, 2]); ctx.lineWidth = 1;
+        [11, 50, 80].forEach(a => {
+            let by = altToY(a); ctx.beginPath(); ctx.moveTo(x + 5, by); ctx.lineTo(x + w - 5, by); ctx.stroke();
+        });
+        ctx.setLineDash([]);
+
+        ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; ctx.font = '9px Pretendard';
+        ctx.fillText('열권', x + 5, altToY(90) + 3); ctx.fillText('중간권', x + 5, altToY(65) + 3);
+        ctx.fillText('성층권', x + 5, altToY(30) + 3); ctx.fillText('대류권', x + 5, altToY(5) + 3);
+
+        ctx.strokeStyle = '#FF5252'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+        ctx.shadowBlur = 5; ctx.shadowColor = '#FF5252';
+        ctx.beginPath();
+        ctx.moveTo(tempToX(15), altToY(0)); ctx.lineTo(tempToX(-60), altToY(11));
+        ctx.lineTo(tempToX(0), altToY(50)); ctx.lineTo(tempToX(-90), altToY(80)); ctx.lineTo(tempToX(20), altToY(100));
+        ctx.stroke(); ctx.shadowBlur = 0;
+
+        let playerTemp = altitude < 11 ? 15 - ((15 - (-60)) * (altitude / 11)) :
+                         altitude < 50 ? -60 + ((0 - (-60)) * ((altitude - 11) / 39)) :
+                         altitude < 80 ? 0 - ((0 - (-90)) * ((altitude - 50) / 30)) :
+                         -90 + ((20 - (-90)) * ((Math.min(altitude, 100) - 80) / 20)); // 교과서상 단순 선 형태 표현 유지
+        let playerY = altToY(altitude);
+        
+        ctx.fillStyle = '#69F0AE'; ctx.beginPath(); ctx.arc(tempToX(playerTemp), playerY, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 10; ctx.shadowColor = '#69F0AE';
+        ctx.beginPath(); ctx.arc(tempToX(playerTemp), playerY, 4.5 + Math.abs(Math.sin(Date.now()/150))*3, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(105, 240, 174, 0.5)'; ctx.fill(); ctx.shadowBlur = 0;
+    }
+
+    function updateUI() {
+        altDisplay.innerText = altitude.toFixed(1) + ' km';
+        speedDisplay.innerText = `🚀 ${player.speedKmH.toLocaleString()} km/h`;
+        layerNameDisplay.innerText = altitude < 11 ? "☁️ 대류권" : altitude < 50 ? "🛡️ 성층권" : altitude < 80 ? "☄️ 중간권" : "🌌 열권";
+        
+        // 시간 표시
+        document.getElementById('time-display').innerText = `⏱️ ${elapsedTime.toFixed(1)}s`;
+
+        // 연료 바 UI 업데이트
+        const fuelBar = document.getElementById('fuel-bar');
+        const fuelText = document.getElementById('fuel-text');
+        fuelBar.style.width = `${player.fuel}%`;
+        fuelText.innerText = Math.floor(player.fuel);
+        
+        // 연료량에 따른 바 색상 경고
+        if (player.fuel > 50) fuelBar.style.background = 'linear-gradient(90deg, #4CAF50, #69F0AE)';
+        else if (player.fuel > 25) fuelBar.style.background = 'linear-gradient(90deg, #FFC107, #FFEB3B)';
+        else fuelBar.style.background = 'linear-gradient(90deg, #F44336, #FF5252)'; // 25% 이하면 빨간색 경고
+
+        let hearts = ''; for(let i=0; i<player.lives; i++) hearts += '❤️';
+        livesDisplay.innerText = hearts;
+
+        let statusHtml = `<span>시스템: 정상</span>`;
+        if (player.isSlow) statusHtml += `<span class="effect-text">구름 저항 (속도↓)</span>`;
+        if (player.isInvincible) statusHtml += `<span class="effect-text" style="color:#00E5FF;">O₃ 방어막 가동!</span>`;
+        if (player.ozoneHeatTimer > 0) statusHtml += `<span class="effect-text" style="color:#FFB300;">🔥 자외선 흡수 (온도/속도↑)</span>`;
+        
+        // 열권 낮밤 상태에 따른 텍스트
+        if (altitude >= 80) {
+            if (player.isOverheated) {
+                statusHtml += `<span class="effect-text" style="color:#FF5252;">🔥 낮 (1500°C) - 과열 폭주!</span>`;
+            } else {
+                statusHtml += `<span class="effect-text" style="color:#81D4FA;">🥶 밤 (-120°C) - 급속 냉각!</span>`;
+            }
+        } else if (player.isFrozen) {
+            statusHtml += `<span class="effect-text" style="color:#81D4FA;">🥶 선체 결빙! (속도↓)</span>`;
+        }
+
+        statusDisplay.innerHTML = statusHtml;
+    }
+
+    function draw() {
+        ctx.fillStyle = getBackgroundGradient(ctx);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 별 그리기 
+        if (altitude >= 20) {
+            stars.forEach(star => {
+                star.y += (altitude >= 80 ? 4 : 2) * star.depth; 
+                if(star.y > canvas.height) { star.y = 0; star.x = Math.random() * canvas.width; }
+                let currentOpacity = star.opacity + Math.sin(Date.now()/500 * star.depth) * 0.3;
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0.1, Math.min(1, currentOpacity))})`;
+                ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI*2); ctx.fill();
+            });
+        }
+        
+        // 무지개 오로라 (배경용으로 은은하게 유지)
+        if (altitude >= 80) {
+            const time = Date.now() / 1000;
+            
+            // 1. 태양열 배경 붉은빛을 오로라보다 '먼저' 그려서 오로라를 가리지 않게 순서 변경
+            if (player.isThermoDay) {
+                let hotGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                hotGrad.addColorStop(0, 'rgba(255, 60, 0, 0.4)'); // 강렬한 붉은빛 강화
+                hotGrad.addColorStop(1, 'rgba(255, 200, 0, 0.05)');
+                ctx.fillStyle = hotGrad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. 오로라 렌더링 (낮/밤 모두 잘 보이도록 투명도 0.1 -> 0.25 로 상향)
+            ctx.save(); ctx.globalCompositeOperation = 'screen';
+            const colors = ['rgba(255,50,50,0.25)','rgba(255,150,0,0.25)','rgba(255,255,0,0.25)','rgba(50,255,50,0.25)','rgba(50,150,255,0.25)','rgba(180,50,255,0.25)'];
+            colors.forEach((col, i) => {
+                ctx.beginPath(); ctx.moveTo(0, canvas.height);
+                for (let x = 0; x <= canvas.width + 20; x += 20) {
+                    ctx.lineTo(x, canvas.height*0.35 + Math.sin(x/80 + time*(1+i*0.1))*40 + Math.cos(x/40 - time)*20 - i*15);
+                }
+                ctx.lineTo(canvas.width, 0); ctx.lineTo(0, 0);
+                let grad = ctx.createLinearGradient(0, 0, 0, canvas.height*0.6);
+                grad.addColorStop(0, col); grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad; ctx.fill();
+            });
+            ctx.restore();
+        }
+
+        // 중간권 서리 또는 열권 밤 서리
+        if ((altitude >= 50 && altitude < 80) || (altitude >= 80 && !player.isThermoDay)) {
+            let coldGrad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.width);
+            coldGrad.addColorStop(0, 'rgba(255, 255, 255, 0)'); coldGrad.addColorStop(1, 'rgba(129, 212, 250, 0.4)');
+            ctx.fillStyle = coldGrad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        if (player.isSlow) { ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+        // 파티클 그리기
+        particles.forEach(p => {
+            ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        entities.forEach(e => drawCustomEntities(ctx, e));
+
+        if (gameState === 'playing') drawRocket(ctx, player.x, player.y, player.size, player.isInvincible, player.isFrozen, player.isOverheated, player.ozoneHeatTimer > 0);
+
+        // 빗방울 렌즈 굴절 효과
+        waterDrops.forEach(drop => {
+            ctx.save(); 
+            ctx.globalAlpha = Math.min(1, drop.life / 20);
+            ctx.beginPath(); ctx.arc(drop.x, drop.y, drop.r, 0, Math.PI * 2);
+            let grd = ctx.createRadialGradient(drop.x - drop.r*0.3, drop.y - drop.r*0.3, drop.r*0.1, drop.x, drop.y, drop.r);
+            grd.addColorStop(0, 'rgba(255, 255, 255, 1)');       
+            grd.addColorStop(0.2, 'rgba(200, 230, 255, 0.8)');   
+            grd.addColorStop(0.7, 'rgba(100, 180, 255, 0.7)');   
+            grd.addColorStop(1, 'rgba(50, 150, 255, 0.9)');      
+            ctx.fillStyle = grd; ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 2.5; ctx.stroke();
+            ctx.restore();
+        });
+        
+        // 화면 번쩍임 효과 (교차 시)
+        if (player.flashAlpha > 0) { ctx.fillStyle = `rgba(${player.flashColor}, ${player.flashAlpha})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+        
+        // 중앙 온도 변화 알림 텍스트 표시
+        if (player.tempAlertTimer > 0) {
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, player.tempAlertTimer / 30); // 마지막에 서서히 사라짐
+            ctx.fillStyle = player.tempAlertColor;
+            ctx.font = '900 26px Pretendard';
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            
+            // 아래에서 위로 살짝 떠오르는 애니메이션
+            let textY = canvas.height / 3 - (120 - player.tempAlertTimer) * 0.5;
+            ctx.fillText(player.tempAlertText, canvas.width / 2, textY);
+            ctx.restore();
+        }
+
+        drawAtmosphereGraph(ctx);
+    }
+
+    function gameLoop() {
+        update(); draw();
+        if (gameState === 'playing') animationId = requestAnimationFrame(gameLoop);
+    }
+</script>
+
+</body>
+</html>
